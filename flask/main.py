@@ -12,6 +12,7 @@ def root():
 
 
 @app.route("/listItem")
+@Utils.profiling_dec
 def list_items():
     try:
         return jsonify(items)
@@ -19,7 +20,6 @@ def list_items():
         raise(e)
 
 @app.route("/addItem", methods=['POST'])
-@Utils.logging_dec
 @Utils.profiling_dec
 def create_item():
     try:
