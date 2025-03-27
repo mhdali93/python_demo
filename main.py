@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from typing import List, Optional
 from enum import Enum
 
+from utils import Utils
+
 app = FastAPI(title="Sample FastAPI App")
 
 # Sample data store (in-memory)
@@ -90,6 +92,7 @@ async def create_item(item: Item):
     # In a real application, you would use a database
     item.id = len(items) + 1
     items.append(item)
+    Utils.heavy_print(items)
     return item
 
 if __name__ == "__main__":
