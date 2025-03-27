@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from utils import Utils
 
 app = Flask(__name__)
@@ -12,7 +12,7 @@ def root():
 
 @app.route("/listItem")
 def list_items():
-    return items
+    return jsonify(items)
 
 @app.route("/addItem", methods=['POST'])
 @Utils.profiling_dec
