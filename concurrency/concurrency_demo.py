@@ -15,6 +15,7 @@ import sqlite3
 import numpy as np
 import aiosqlite
 from aiohttp import ClientSession
+from sample_users import sample_users
 
 # Global constants
 DB_FILE = 'simple_demo.db'
@@ -46,22 +47,6 @@ def setup_database():
     ''')
     
     # Insert sample data
-    sample_users = [
-        (1, 'A', 'a@example.com',1),
-        (2, 'B', 'b@example.com',2),
-        (3, 'C', 'c@example.com',3),
-        (4, 'D', 'd@example.com',4),
-        (5, 'E', 'e@example.com',5),
-        (6, 'F', 'f@example.com',6),
-        (7, 'G', 'g@example.com',7),
-        (8, 'H', 'h@example.com',8),
-        (9, 'I', 'i@example.com',9),
-        (10, 'J', 'j@example.com',10),
-        (11, 'K', 'k@example.com',11),
-        (12, 'L', 'l@example.com',12),
-        (13, 'M', 'm@example.com',13),
-        (14, 'N', 'n@example.com',14)
-    ]
     cursor.executemany('INSERT INTO users VALUES (?, ?, ?, ?)', sample_users)
     
     # Commit and close
@@ -75,6 +60,7 @@ def sync_db_query(user_id):
     """Synchronous database query"""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
+    print(f"Sync Going to Retrieve for {user_id}")
     cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
     user = cursor.fetchone()
     conn.close()
@@ -84,6 +70,7 @@ async def async_db_query(user_id):
     """Asynchronous database query"""
     db = await aiosqlite.connect(DB_FILE)
     try:
+        print(f"Async Going to Retrieve for {user_id}")
         async with db.execute("SELECT * FROM users WHERE id = ?", (user_id,)) as cursor:
             row = await cursor.fetchone()
             return row
@@ -138,7 +125,7 @@ def run_threading_demo():
     # Example 3: Database operations no threading
     print("\n--- Example 3: Database Operations (No Threading) ---")
     start_time = time.time()
-    for i in range(1, 6):
+    for i in range(1, len(sample_users)+1):
         user = sync_db_query(i)
         print(f"Retrieved user {user[1]}")
     end_time = time.time()
@@ -150,7 +137,7 @@ def run_threading_demo():
     db_threads = []
     
     # Create and start threads for database operations
-    for i in range(1, 6):
+    for i in range(1, len(sample_users)+1):
         thread = threading.Thread(
             target=lambda x: print(f"Retrieved user {sync_db_query(x)[1]}"),
             args=(i,)
@@ -257,7 +244,7 @@ async def run_async_demo():
     # Example 3: Database operations no asyncio
     print("\n--- Example 3: Database Operations (No AsyncIO) ---")
     start_time = time.time()
-    for i in range(1, 6):
+    for i in range(1, len(sample_users)+1):
         user = sync_db_query(i)
         print(f"Retrieved user {user[1]}")
     end_time = time.time()
@@ -268,7 +255,7 @@ async def run_async_demo():
     start_time = time.time()
     
     # Create tasks for individual database operations
-    db_tasks = [async_db_query(i) for i in range(1, 6)]
+    db_tasks = [async_db_query(i) for i in range(1, len(sample_users)+1)]
     
     # Wait for all tasks to complete
     results = await asyncio.gather(*db_tasks)
