@@ -1,4 +1,4 @@
- #!/usr/bin/env python3
+#!/usr/bin/env python3
 
 """
 Python Concurrency Demo
@@ -13,6 +13,8 @@ import asyncio
 import requests
 import sqlite3
 import numpy as np
+import aiosqlite
+from aiohttp import ClientSession
 
 # Global constants
 DB_FILE = 'simple_demo.db'
@@ -67,6 +69,24 @@ def setup_database():
     conn.close()
     print(f"Database created at {DB_FILE}")
 
+# ===== DATABASE OPERATIONS =====
+
+def sync_db_query(user_id):
+    """Synchronous database query"""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+    conn.close()
+    return user
+
+async def async_db_query(user_id):
+    """Asynchronous database query"""
+    async with await aiosqlite.connect(DB_FILE) as db:
+        async with db.execute("SELECT * FROM users WHERE id = ?", (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            return row
+
 # ===== THREADING EXAMPLES =====
 
 def download_url(url, thread_name):
@@ -77,27 +97,6 @@ def download_url(url, thread_name):
     end_time = time.time()
     print(f"Thread {thread_name}: Downloaded {url} in {end_time - start_time:.2f} seconds")
     return response.status_code
-
-def database_operation(user_id, thread_name):
-    """Function that performs a database read - I/O bound task"""
-    print(f"Thread {thread_name}: Getting user {user_id}")
-    
-    # Connect to database (each thread needs its own connection)
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    
-    # Simulate a slower database query with a sleep
-    time.sleep(1)
-    
-    # Query the database
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    user = cursor.fetchone()
-    
-    # Close connection
-    conn.close()
-    
-    print(f"Thread {thread_name}: Retrieved user {user[1]}")
-    return user
 
 def run_threading_demo():
     print("\n===== THREADING DEMO =====")
@@ -137,7 +136,8 @@ def run_threading_demo():
     print("\n--- Example 3: Database Operations (No Threading) ---")
     start_time = time.time()
     for i in range(1, 6):
-        database_operation(i, f"DB-Main-{i}")
+        user = sync_db_query(i)
+        print(f"Retrieved user {user[1]}")
     end_time = time.time()
     print(f"Total time without threading: {end_time - start_time:.2f} seconds")
 
@@ -149,8 +149,8 @@ def run_threading_demo():
     # Create and start threads for database operations
     for i in range(1, 6):
         thread = threading.Thread(
-            target=database_operation, 
-            args=(i, f"DB-Worker-{i}")
+            target=lambda x: print(f"Retrieved user {sync_db_query(x)[1]}"),
+            args=(i,)
         )
         db_threads.append(thread)
         thread.start()
@@ -219,14 +219,6 @@ async def fetch_url(url, session):
     print(f"Fetched {url} in {end_time - start_time:.2f} seconds")
     return response.status
 
-async def async_database_operation(user_id):
-    """Simulate an async database operation"""
-    print(f"Getting user {user_id}")
-    # Simulate I/O operation with sleep
-    await asyncio.sleep(1)
-    print(f"Retrieved user {user_id}")
-    return user_id
-
 async def run_async_demo():
     print("\n===== ASYNCIO DEMO =====")
     print("AsyncIO is good for I/O-bound tasks with cooperative multitasking")
@@ -242,12 +234,10 @@ async def run_async_demo():
 
     # Example 2: Fetching URLs with asyncio
     print("\n--- Example 2: URL Fetches (With AsyncIO) ---")
-    import aiohttp
-    
     start_time = time.time()
     
     # Create a client session
-    async with aiohttp.ClientSession() as session:
+    async with ClientSession() as session:
         # Create tasks for each URL
         tasks = [fetch_url(url, session) for url in SAMPLE_URLS]
         
@@ -261,21 +251,24 @@ async def run_async_demo():
     print("\n--- Example 3: Database Operations (No AsyncIO) ---")
     start_time = time.time()
     for i in range(1, 6):
-        print(f"Getting user {i}")
-        time.sleep(1)
-        print(f"Retrieved user {i}")
+        user = sync_db_query(i)
+        print(f"Retrieved user {user[1]}")
     end_time = time.time()
     print(f"Total time without async: {end_time - start_time:.2f} seconds")
 
-    # Example 4: Simulated database operations with asyncio
-    print("\n--- Example 4: Simulated Database Operations (With AsyncIO) ---")
+    # Example 4: Database operations with asyncio
+    print("\n--- Example 4: Database Operations (With AsyncIO) ---")
     start_time = time.time()
     
-    # Create tasks for database operations
-    db_tasks = [async_database_operation(i) for i in range(1, 6)]
+    # Create tasks for individual database operations
+    db_tasks = [async_db_query(i) for i in range(1, 6)]
     
     # Wait for all tasks to complete
-    await asyncio.gather(*db_tasks)
+    results = await asyncio.gather(*db_tasks)
+    
+    # Print results
+    for row in results:
+        print(f"Retrieved user {row[1]}")
     
     end_time = time.time()
     print(f"Total time for async database operations: {end_time - start_time:.2f} seconds")
