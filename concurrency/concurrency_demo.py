@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+ #!/usr/bin/env python3
 
 """
 Python Concurrency Demo
@@ -38,19 +38,29 @@ def setup_database():
     CREATE TABLE users (
         id INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
-        email TEXT NOT NULL
+        email TEXT NOT NULL,
+        age INTEGER NULL
     )
     ''')
     
     # Insert sample data
     sample_users = [
-        (1, 'Alice', 'alice@example.com'),
-        (2, 'Bob', 'bob@example.com'),
-        (3, 'Charlie', 'charlie@example.com'),
-        (4, 'Dave', 'dave@example.com'),
-        (5, 'Eve', 'eve@example.com')
+        (1, 'A', 'a@example.com',1),
+        (2, 'B', 'b@example.com',2),
+        (3, 'C', 'c@example.com',3),
+        (4, 'D', 'd@example.com',4),
+        (5, 'E', 'e@example.com',5),
+        (6, 'F', 'f@example.com',6),
+        (7, 'G', 'g@example.com',7),
+        (8, 'H', 'h@example.com',8),
+        (9, 'I', 'i@example.com',9),
+        (10, 'J', 'j@example.com',10),
+        (11, 'K', 'k@example.com',11),
+        (12, 'L', 'l@example.com',12),
+        (13, 'M', 'm@example.com',13),
+        (14, 'N', 'n@example.com',14)
     ]
-    cursor.executemany('INSERT INTO users VALUES (?, ?, ?)', sample_users)
+    cursor.executemany('INSERT INTO users VALUES (?, ?, ?, ?)', sample_users)
     
     # Commit and close
     conn.commit()
@@ -123,8 +133,16 @@ def run_threading_demo():
     end_time = time.time()
     print(f"Total time with threading: {end_time - start_time:.2f} seconds")
     
-    # Example 3: Database operations with threading
-    print("\n--- Example 3: Database Operations (With Threading) ---")
+    # Example 3: Database operations no threading
+    print("\n--- Example 3: Database Operations (No Threading) ---")
+    start_time = time.time()
+    for i in range(1, 6):
+        database_operation(i, f"DB-Main-{i}")
+    end_time = time.time()
+    print(f"Total time without threading: {end_time - start_time:.2f} seconds")
+
+    # Example 4: Database operations with threading
+    print("\n--- Example 4: Database Operations (With Threading) ---")
     start_time = time.time()
     db_threads = []
     
@@ -152,7 +170,7 @@ def cpu_intensive_task(n):
     start_time = time.time()
     
     # Create two random matrices
-    size = 500
+    size = 1500
     matrix_a = np.random.rand(size, size)
     matrix_b = np.random.rand(size, size)
     
@@ -214,8 +232,16 @@ async def run_async_demo():
     print("AsyncIO is good for I/O-bound tasks with cooperative multitasking")
     print("Tasks voluntarily yield control when waiting for I/O")
     
-    # Example 1: Fetching URLs with asyncio
-    print("\n--- Example 1: URL Fetches (With AsyncIO) ---")
+    # Example 1: Downloading URLs without asyncio
+    print("\n--- Example 1: URL Downloads (No AsyncIO) ---")
+    start_time = time.time()
+    for i, url in enumerate(SAMPLE_URLS):
+        download_url(url, f"Main-{i}")
+    end_time = time.time()
+    print(f"Total time without asyncio: {end_time - start_time:.2f} seconds")
+
+    # Example 2: Fetching URLs with asyncio
+    print("\n--- Example 2: URL Fetches (With AsyncIO) ---")
     import aiohttp
     
     start_time = time.time()
@@ -231,8 +257,18 @@ async def run_async_demo():
     end_time = time.time()
     print(f"Total time with asyncio: {end_time - start_time:.2f} seconds")
     
-    # Example 2: Simulated database operations with asyncio
-    print("\n--- Example 2: Simulated Database Operations (With AsyncIO) ---")
+    # Example 3: Database operations no asyncio
+    print("\n--- Example 3: Database Operations (No AsyncIO) ---")
+    start_time = time.time()
+    for i in range(1, 6):
+        print(f"Getting user {i}")
+        time.sleep(1)
+        print(f"Retrieved user {i}")
+    end_time = time.time()
+    print(f"Total time without async: {end_time - start_time:.2f} seconds")
+
+    # Example 4: Simulated database operations with asyncio
+    print("\n--- Example 4: Simulated Database Operations (With AsyncIO) ---")
     start_time = time.time()
     
     # Create tasks for database operations
