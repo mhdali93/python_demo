@@ -19,10 +19,10 @@ from aiohttp import ClientSession
 # Global constants
 DB_FILE = 'simple_demo.db'
 SAMPLE_URLS = [
-    'https://httpbin.org/delay/1',
-    'https://httpbin.org/delay/1',
-    'https://httpbin.org/delay/1',
-    'https://httpbin.org/delay/1'
+    'http://httpbin.org/delay/1',
+    'http://httpbin.org/delay/1',
+    'http://httpbin.org/delay/1',
+    'http://httpbin.org/delay/1'
 ]
 
 def setup_database():
@@ -82,10 +82,13 @@ def sync_db_query(user_id):
 
 async def async_db_query(user_id):
     """Asynchronous database query"""
-    async with await aiosqlite.connect(DB_FILE) as db:
+    db = await aiosqlite.connect(DB_FILE)
+    try:
         async with db.execute("SELECT * FROM users WHERE id = ?", (user_id,)) as cursor:
             row = await cursor.fetchone()
             return row
+    finally:
+        await db.close()
 
 # ===== THREADING EXAMPLES =====
 
@@ -213,11 +216,15 @@ async def fetch_url(url, session):
     """Async function to fetch a URL - I/O bound task"""
     print(f"Fetching {url}")
     start_time = time.time()
-    async with session.get(url) as response:
-        await response.read()
-    end_time = time.time()
-    print(f"Fetched {url} in {end_time - start_time:.2f} seconds")
-    return response.status
+    try:
+        async with session.get(url, ssl=False) as response:
+            await response.read()
+        end_time = time.time()
+        print(f"Fetched {url} in {end_time - start_time:.2f} seconds")
+        return response.status
+    except Exception as e:
+        print(f"Error fetching {url}: {str(e)}")
+        return None
 
 async def run_async_demo():
     print("\n===== ASYNCIO DEMO =====")
@@ -279,10 +286,10 @@ def main():
     setup_database()
     
     # Run threading demo
-    run_threading_demo()
+    # run_threading_demo()
     
     # Run multiprocessing demo
-    run_multiprocessing_demo()
+    # run_multiprocessing_demo()
     
     # Run asyncio demo
     asyncio.run(run_async_demo())
