@@ -15,7 +15,7 @@ import sqlite3
 import numpy as np
 import aiosqlite
 from aiohttp import ClientSession
-from sample_users import sample_users
+from sample_employees import sample_employees
 
 # Global constants
 DB_FILE = 'simple_demo.db'
@@ -38,16 +38,21 @@ def setup_database():
     
     # Create a simple table
     cursor.execute('''
-    CREATE TABLE users (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL,
-        age INTEGER NULL
-    )
+        CREATE TABLE employee (
+            employee_id INT PRIMARY KEY,
+            first_name VARCHAR(50),
+            last_name VARCHAR(50),
+            email VARCHAR(100),
+            hire_date DATE,
+            job_title VARCHAR(50),
+            salary DECIMAL(10, 2),
+            department VARCHAR(50),
+            manager_id INT
+        )
     ''')
     
     # Insert sample data
-    cursor.executemany('INSERT INTO users VALUES (?, ?, ?, ?)', sample_users)
+    cursor.executemany('INSERT INTO employee VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', sample_employees)
     
     # Commit and close
     conn.commit()
@@ -56,22 +61,68 @@ def setup_database():
 
 # ===== DATABASE OPERATIONS =====
 
-def sync_db_query(user_id):
+def sync_db_query(employee_id):
     """Synchronous database query"""
     conn = sqlite3.connect(DB_FILE)
+    print(f"Sync Going to Retrieve for {employee_id}")
+    time.sleep(0.5)
     cursor = conn.cursor()
-    print(f"Sync Going to Retrieve for {user_id}")
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    user = cursor.fetchone()
-    conn.close()
-    return user
+    query= """  WITH emp_cte AS (
+                        SELECT
+                            manager_id,
+                            COUNT(1) AS rep,SUM(salary) as tot_rep_sal
 
-async def async_db_query(user_id):
+                        FROM employee
+                        GROUP BY manager_id
+                )
+                SELECT 
+                    e1.*,
+                    e2.first_name || ' ' || e2.last_name AS manager_name,
+                    CASE 
+                        WHEN e3.rep IS NOT NULL THEN e3.rep 
+                        ELSE 0 
+                        END AS reporters,
+                    CASE 
+                        WHEN e3.tot_rep_sal IS NOT NULL THEN e3.tot_rep_sal 
+                        ELSE 0 
+                        END AS team_salary
+                    FROM employee e1
+                    LEFT JOIN employee e2 ON e2.employee_id = e1.manager_id
+                    LEFT JOIN emp_cte e3 ON e3.manager_id = e1.employee_id WHERE e1.employee_id = ?"""
+    cursor.execute(query, (employee_id,))
+    employee = cursor.fetchone()
+    conn.close()
+    return employee
+
+async def async_db_query(employee_id):
     """Asynchronous database query"""
     db = await aiosqlite.connect(DB_FILE)
+    await asyncio.sleep(0.5)
     try:
-        print(f"Async Going to Retrieve for {user_id}")
-        async with db.execute("SELECT * FROM users WHERE id = ?", (user_id,)) as cursor:
+        print(f"Async Going to Retrieve for {employee_id}")
+        query= """  WITH emp_cte AS (
+                        SELECT
+                            manager_id,
+                            COUNT(1) AS rep,SUM(salary) as tot_rep_sal
+
+                        FROM employee
+                        GROUP BY manager_id
+                )
+                SELECT 
+                    e1.*,
+                    e2.first_name || ' ' || e2.last_name AS manager_name,
+                    CASE 
+                        WHEN e3.rep IS NOT NULL THEN e3.rep 
+                        ELSE 0 
+                        END AS reporters,
+                    CASE 
+                        WHEN e3.tot_rep_sal IS NOT NULL THEN e3.tot_rep_sal 
+                        ELSE 0 
+                        END AS team_salary
+                    FROM employee e1
+                    LEFT JOIN employee e2 ON e2.employee_id = e1.manager_id
+                    LEFT JOIN emp_cte e3 ON e3.manager_id = e1.employee_id WHERE e1.employee_id = ?"""
+        async with db.execute(query, (employee_id,)) as cursor:
             row = await cursor.fetchone()
             return row
     finally:
@@ -125,9 +176,9 @@ def run_threading_demo():
     # Example 3: Database operations no threading
     print("\n--- Example 3: Database Operations (No Threading) ---")
     start_time = time.time()
-    for i in range(1, len(sample_users)+1):
-        user = sync_db_query(i)
-        print(f"Retrieved user {user[1]}")
+    for i in range(1, len(sample_employees)+1):
+        employee = sync_db_query(i)
+        print(f"Retrieved employee {employee[1]}")
     end_time = time.time()
     print(f"Total time without threading: {end_time - start_time:.2f} seconds")
 
@@ -137,9 +188,9 @@ def run_threading_demo():
     db_threads = []
     
     # Create and start threads for database operations
-    for i in range(1, len(sample_users)+1):
+    for i in range(1, len(sample_employees)+1):
         thread = threading.Thread(
-            target=lambda x: print(f"Retrieved user {sync_db_query(x)[1]}"),
+            target=lambda x: print(f"Retrieved employee {sync_db_query(x)[1]}"),
             args=(i,)
         )
         db_threads.append(thread)
@@ -244,9 +295,9 @@ async def run_async_demo():
     # Example 3: Database operations no asyncio
     print("\n--- Example 3: Database Operations (No AsyncIO) ---")
     start_time = time.time()
-    for i in range(1, len(sample_users)+1):
-        user = sync_db_query(i)
-        print(f"Retrieved user {user[1]}")
+    for i in range(1, len(sample_employees)+1):
+        employee = sync_db_query(i)
+        print(f"Retrieved employee {employee[1]}")
     end_time = time.time()
     print(f"Total time without async: {end_time - start_time:.2f} seconds")
 
@@ -255,14 +306,14 @@ async def run_async_demo():
     start_time = time.time()
     
     # Create tasks for individual database operations
-    db_tasks = [async_db_query(i) for i in range(1, len(sample_users)+1)]
+    db_tasks = [async_db_query(i) for i in range(1, len(sample_employees)+1)]
     
     # Wait for all tasks to complete
     results = await asyncio.gather(*db_tasks)
     
     # Print results
     for row in results:
-        print(f"Retrieved user {row[1]}")
+        print(f"Retrieved employee {row[1]}")
     
     end_time = time.time()
     print(f"Total time for async database operations: {end_time - start_time:.2f} seconds")
