@@ -178,7 +178,7 @@ def run_threading_demo():
     start_time = time.time()
     for i in range(1, len(sample_employees)+1):
         employee = sync_db_query(i)
-        print(f"Retrieved employee {employee[1]}")
+        print(f"Retrieved employee {str(employee)}")
     end_time = time.time()
     print(f"Total time without threading: {end_time - start_time:.2f} seconds")
 
@@ -190,7 +190,7 @@ def run_threading_demo():
     # Create and start threads for database operations
     for i in range(1, len(sample_employees)+1):
         thread = threading.Thread(
-            target=lambda x: print(f"Retrieved employee {sync_db_query(x)[1]}"),
+            target=lambda x: print(f"Retrieved employee {str(sync_db_query(x))}"),
             args=(i,)
         )
         db_threads.append(thread)
@@ -297,7 +297,7 @@ async def run_async_demo():
     start_time = time.time()
     for i in range(1, len(sample_employees)+1):
         employee = sync_db_query(i)
-        print(f"Retrieved employee {employee[1]}")
+        print(f"Retrieved employee {str(employee)}")
     end_time = time.time()
     print(f"Total time without async: {end_time - start_time:.2f} seconds")
 
@@ -313,7 +313,7 @@ async def run_async_demo():
     
     # Print results
     for row in results:
-        print(f"Retrieved employee {row[1]}")
+        print(f"Retrieved employee {str(row)}")
     
     end_time = time.time()
     print(f"Total time for async database operations: {end_time - start_time:.2f} seconds")
@@ -324,10 +324,10 @@ def main():
     setup_database()
     
     # Run threading demo
-    # run_threading_demo()
+    run_threading_demo()
     
     # Run multiprocessing demo
-    # run_multiprocessing_demo()
+    run_multiprocessing_demo()
     
     # Run asyncio demo
     asyncio.run(run_async_demo())
