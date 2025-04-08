@@ -11,193 +11,189 @@ approach compared to implementing a custom connection pool.
 import time
 import random
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, MetaData, Table
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, MetaData, Table
 from sqlalchemy.pool import QueuePool
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql import text
 
-# Configuration
-DB_URL = "sqlite:///example_sqlalchemy.db"
-NUM_OPERATIONS = 10000  # Increased from 100 to 10000 (100x)
-POOL_SIZE = 20  # Increased from 5 to 20
-MAX_OVERFLOW = 30  # Increased from 10 to 30
-
-# Create the engine with pooling
-engine = create_engine(
-    DB_URL,
-    poolclass=QueuePool,  # Use QueuePool as the connection pool
-    pool_size=POOL_SIZE,  # How many connections to keep open
-    max_overflow=MAX_OVERFLOW,  # How many extra connections allowed
-    pool_timeout=30,  # Timeout waiting for a connection from the pool
-    pool_recycle=1800,  # Recycle connections older than 1800 seconds
-)
-
-# Create a base class for declarative models
+# Create the base class for declarative models
 Base = declarative_base()
 
-# Define User model
 class User(Base):
+    """User model for the database"""
     __tablename__ = 'users'
     
     id = Column(Integer, primary_key=True)
-    username = Column(String, nullable=False)
-    email = Column(String, nullable=False)
-    created_at = Column(String, nullable=False)
+    username = Column(String(50), nullable=False)
+    email = Column(String(100), nullable=False)
+    created_at = Column(DateTime, nullable=False)
     
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', email='{self.email}')>"
 
-# Create session factory
-Session = sessionmaker(bind=engine)
-
-def setup_database():
-    """Set up the example database with a users table."""
-    # Drop all tables to start fresh
-    Base.metadata.drop_all(engine)
-    # Create all tables
-    Base.metadata.create_all(engine)
-    print("Database setup complete.")
-
-def insert_user(username, email):
-    """Insert a user into the database using SQLAlchemy's session."""
-    # Create a new session from the session factory
-    session = Session()
+class SQLAlchemyManager:
+    """Manages database operations using SQLAlchemy"""
     
-    try:
-        # Create new user
-        user = User(
-            username=username,
-            email=email,
-            created_at=datetime.now().isoformat()
+    def __init__(self, db_url="sqlite:///example_sqlalchemy.db", pool_size=20):
+        self.engine = create_engine(
+            db_url,
+            pool_size=pool_size,
+            max_overflow=10,
+            pool_timeout=30,
+            pool_recycle=1800
         )
-        
-        # Add to session and commit
-        session.add(user)
-        session.commit()
-    except Exception as e:
-        # Rollback transaction on error
-        session.rollback()
-        raise e
-    finally:
-        # Always close the session to return the connection to the pool
-        session.close()
-
-def get_user_by_id(user_id):
-    """Get a user by ID using SQLAlchemy's session."""
-    session = Session()
+        self.Session = sessionmaker(bind=self.engine)
+        self.setup_database()
     
-    try:
-        # Query for user
-        user = session.query(User).filter(User.id == user_id).first()
-        return user
-    finally:
-        # Always close the session
-        session.close()
-
-def update_user_email(user_id, new_email):
-    """Update a user's email using SQLAlchemy's session."""
-    session = Session()
+    def setup_database(self):
+        """Set up the database and create tables"""
+        Base.metadata.drop_all(self.engine)
+        Base.metadata.create_all(self.engine)
+        print("Database setup complete.")
     
-    try:
-        # Get the user
-        user = session.query(User).filter(User.id == user_id).first()
-        if user:
-            # Update email
-            user.email = new_email
+    def insert_user(self, username, email):
+        """Insert a user into the database"""
+        session = self.Session()
+        try:
+            user = User(
+                username=username,
+                email=email,
+                created_at=datetime.now()
+            )
+            session.add(user)
             session.commit()
-    except Exception as e:
-        # Rollback transaction on error
-        session.rollback()
-        raise e
-    finally:
-        # Always close the session
-        session.close()
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+    
+    def get_user_by_id(self, user_id):
+        """Get a user by ID"""
+        session = self.Session()
+        try:
+            user = session.query(User).filter_by(id=user_id).first()
+            return user
+        finally:
+            session.close()
+    
+    def update_user_email(self, user_id, new_email):
+        """Update a user's email"""
+        session = self.Session()
+        try:
+            user = session.query(User).filter_by(id=user_id).first()
+            if user:
+                user.email = new_email
+                session.commit()
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+    
+    def close(self):
+        """Close the engine and dispose of the connection pool"""
+        self.engine.dispose()
+    
+    def show_pool_status(self):
+        """Show the current status of the connection pool."""
+        status = {
+            "size": self.engine.pool.size(),
+            "checkedin": self.engine.pool.checkedin(),
+            "overflow": self.engine.pool.overflow(),
+            "checkedout": self.engine.pool.checkedout(),
+        }
+        
+        print("\nConnection Pool Status:")
+        print(f"Pool Size: {status['size']}")
+        print(f"Checked In: {status['checkedin']}")
+        print(f"Checked Out: {status['checkedout']}")
+        print(f"Overflow: {status['overflow']}")
+        
+        return status
 
-def run_benchmark():
-    """Run a benchmark of database operations with SQLAlchemy's connection pooling."""
-    print(f"Running benchmark with {NUM_OPERATIONS} operations...")
-    print(f"Connection pool size: {POOL_SIZE} (max overflow: {MAX_OVERFLOW})")
+class SQLAlchemyBenchmark:
+    """Runs benchmarks on SQLAlchemy database operations"""
     
-    # Set up fresh database
-    setup_database()
+    def __init__(self, db_manager, num_operations=10000):
+        self.db_manager = db_manager
+        self.num_operations = num_operations
     
-    # Measure insert operations
-    start_time = time.time()
-    
-    for i in range(1, NUM_OPERATIONS + 1):
-        username = f"user{i}"
-        email = f"user{i}@example.com"
-        insert_user(username, email)
-    
-    insert_time = time.time() - start_time
-    print(f"Insert time: {insert_time:.4f} seconds")
-    
-    # Measure query operations
-    start_time = time.time()
-    
-    for i in range(1, NUM_OPERATIONS + 1):
-        user_id = random.randint(1, NUM_OPERATIONS)
-        user = get_user_by_id(user_id)
-    
-    query_time = time.time() - start_time
-    print(f"Query time: {query_time:.4f} seconds")
-    
-    # Measure update operations
-    start_time = time.time()
-    
-    for i in range(1, NUM_OPERATIONS + 1):
-        user_id = random.randint(1, NUM_OPERATIONS)
-        new_email = f"updated{user_id}@example.com"
-        update_user_email(user_id, new_email)
-    
-    update_time = time.time() - start_time
-    print(f"Update time: {update_time:.4f} seconds")
-    
-    # Dispose of the engine (close all connections)
-    engine.dispose()
-    
-    # Total time
-    total_time = insert_time + query_time + update_time
-    print(f"Total time: {total_time:.4f} seconds")
-    
-    return {
-        "insert_time": insert_time,
-        "query_time": query_time,
-        "update_time": update_time,
-        "total_time": total_time
-    }
+    def run_benchmark(self):
+        """Run a benchmark of database operations"""
+        print(f"Running benchmark with {self.num_operations} operations...")
+        print(f"Connection pool size: {self.db_manager.engine.pool.size()}")
+        
+        # Measure insert operations
+        start_time = time.time()
+        
+        for i in range(1, self.num_operations + 1):
+            username = f"user{i}"
+            email = f"user{i}@example.com"
+            self.db_manager.insert_user(username, email)
+        
+        insert_time = time.time() - start_time
+        print(f"Insert time: {insert_time:.4f} seconds")
+        
+        # Measure query operations
+        start_time = time.time()
+        
+        for _ in range(self.num_operations):
+            user_id = random.randint(1, self.num_operations)
+            self.db_manager.get_user_by_id(user_id)
+        
+        query_time = time.time() - start_time
+        print(f"Query time: {query_time:.4f} seconds")
+        
+        # Measure update operations
+        start_time = time.time()
+        
+        for _ in range(self.num_operations):
+            user_id = random.randint(1, self.num_operations)
+            new_email = f"updated{user_id}@example.com"
+            self.db_manager.update_user_email(user_id, new_email)
+        
+        update_time = time.time() - start_time
+        print(f"Update time: {update_time:.4f} seconds")
+        
+        # Show final pool status
+        self.db_manager.show_pool_status()
+        
+        # Close the connection pool
+        self.db_manager.close()
+        
+        # Total time
+        total_time = insert_time + query_time + update_time
+        print(f"Total time: {total_time:.4f} seconds")
+        
+        return {
+            "insert_time": insert_time,
+            "query_time": query_time,
+            "update_time": update_time,
+            "total_time": total_time
+        }
 
-def show_pool_status():
-    """Show the current status of the connection pool."""
-    status = {
-        "size": engine.pool.size(),
-        "checkedin": engine.pool.checkedin(),
-        "overflow": engine.pool.overflow(),
-        "checkedout": engine.pool.checkedout(),
-    }
-    
-    print("\nConnection Pool Status:")
-    print(f"Pool Size: {status['size']}")
-    print(f"Checked In: {status['checkedin']}")
-    print(f"Checked Out: {status['checkedout']}")
-    print(f"Overflow: {status['overflow']}")
-    
-    return status
-
-if __name__ == "__main__":
+def main():
+    """Main function to run the benchmark"""
     print("Database Operations with SQLAlchemy Connection Pooling")
     print("=" * 60)
     
-    # Run the benchmark
-    results = run_benchmark()
+    # Create database manager with SQLAlchemy
+    db_manager = SQLAlchemyManager(
+        db_url="sqlite:///example_sqlalchemy.db",
+        pool_size=20
+    )
     
-    # Show final pool status
-    show_pool_status()
+    # Create benchmark instance
+    benchmark = SQLAlchemyBenchmark(db_manager, num_operations=10000)
+    
+    # Run the benchmark
+    results = benchmark.run_benchmark()
     
     print("\nBenchmark Summary:")
     print("-" * 30)
-    print(f"Operations: {NUM_OPERATIONS} of each type")
-    print(f"Connection pool size: {POOL_SIZE} (max overflow: {MAX_OVERFLOW})")
+    print(f"Operations: {benchmark.num_operations} of each type")
+    print(f"Connection pool size: {db_manager.engine.pool.size()}")
     print(f"Insert time: {results['insert_time']:.4f} seconds")
     print(f"Query time: {results['query_time']:.4f} seconds")
     print(f"Update time: {results['update_time']:.4f} seconds")
@@ -206,4 +202,7 @@ if __name__ == "__main__":
     print("- Connection recycling")
     print("- Dynamic pool resizing (overflow)")
     print("- Automatic validation of connections")
-    print("- Connection timeouts") 
+    print("- Connection timeouts")
+
+if __name__ == "__main__":
+    main() 

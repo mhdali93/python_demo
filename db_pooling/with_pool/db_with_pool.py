@@ -15,11 +15,6 @@ from datetime import datetime
 import queue
 import threading
 
-# Configuration
-DB_FILE = "example.db"
-NUM_OPERATIONS = 10000  # Increased from 100 to 10000 (100x)
-POOL_SIZE = 20  # Increased from 5 to 20 to handle larger workload
-
 class ConnectionPool:
     """
     A simple database connection pool implementation.
@@ -66,151 +61,165 @@ class ConnectionPool:
                 conn.close()
                 self.size -= 1
 
-# Create a global connection pool
-connection_pool = None
-
-def setup_database():
-    """Set up the example database with a users table."""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
+class DatabaseManager:
+    """Manages database operations with connection pooling"""
     
-    # Drop table if it exists
-    cursor.execute("DROP TABLE IF EXISTS users")
+    def __init__(self, db_file="example.db", pool_size=20):
+        self.db_file = db_file
+        self.pool = ConnectionPool(db_file, pool_size)
+        self.setup_database()
     
-    # Create users table
-    cursor.execute("""
-    CREATE TABLE users (
-        id INTEGER PRIMARY KEY,
-        username TEXT NOT NULL,
-        email TEXT NOT NULL,
-        created_at TEXT NOT NULL
-    )
-    """)
-    
-    conn.commit()
-    conn.close()
-    print("Database setup complete.")
-
-def insert_user(username, email):
-    """Insert a single user into the database using a pooled connection."""
-    # Get a connection from the pool
-    conn = connection_pool.get_connection()
-    cursor = conn.cursor()
-    
-    try:
-        created_at = datetime.now().isoformat()
-        cursor.execute(
-            "INSERT INTO users (username, email, created_at) VALUES (?, ?, ?)",
-            (username, email, created_at)
-        )
+    def setup_database(self):
+        """Set up the example database with a users table."""
+        conn = self.pool.get_connection()
+        cursor = conn.cursor()
         
-        conn.commit()
-    finally:
-        # Return the connection to the pool
-        connection_pool.release_connection(conn)
-
-def get_user_by_id(user_id):
-    """Retrieve a user by ID using a pooled connection."""
-    # Get a connection from the pool
-    conn = connection_pool.get_connection()
-    cursor = conn.cursor()
+        try:
+            # Drop table if it exists
+            cursor.execute("DROP TABLE IF EXISTS users")
+            
+            # Create users table
+            cursor.execute("""
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                username TEXT NOT NULL,
+                email TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """)
+            
+            conn.commit()
+            print("Database setup complete.")
+        finally:
+            self.pool.release_connection(conn)
     
-    try:
-        cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-        user = cursor.fetchone()
-        return user
-    finally:
-        # Return the connection to the pool
-        connection_pool.release_connection(conn)
-
-def update_user_email(user_id, new_email):
-    """Update a user's email using a pooled connection."""
-    # Get a connection from the pool
-    conn = connection_pool.get_connection()
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute(
-            "UPDATE users SET email = ? WHERE id = ?",
-            (new_email, user_id)
-        )
+    def insert_user(self, username, email):
+        """Insert a single user into the database using a pooled connection."""
+        conn = self.pool.get_connection()
+        cursor = conn.cursor()
         
-        conn.commit()
-    finally:
-        # Return the connection to the pool
-        connection_pool.release_connection(conn)
+        try:
+            created_at = datetime.now().isoformat()
+            cursor.execute(
+                "INSERT INTO users (username, email, created_at) VALUES (?, ?, ?)",
+                (username, email, created_at)
+            )
+            
+            conn.commit()
+        finally:
+            self.pool.release_connection(conn)
+    
+    def get_user_by_id(self, user_id):
+        """Retrieve a user by ID using a pooled connection."""
+        conn = self.pool.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+            user = cursor.fetchone()
+            return user
+        finally:
+            self.pool.release_connection(conn)
+    
+    def update_user_email(self, user_id, new_email):
+        """Update a user's email using a pooled connection."""
+        conn = self.pool.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute(
+                "UPDATE users SET email = ? WHERE id = ?",
+                (new_email, user_id)
+            )
+            
+            conn.commit()
+        finally:
+            self.pool.release_connection(conn)
+    
+    def close(self):
+        """Close all connections in the pool."""
+        self.pool.close_all()
 
-def run_benchmark():
-    """Run a benchmark of database operations with connection pooling."""
-    global connection_pool
+class DatabaseBenchmark:
+    """Runs benchmarks on database operations with connection pooling"""
     
-    print(f"Running benchmark with {NUM_OPERATIONS} operations...")
-    print(f"Connection pool size: {POOL_SIZE}")
+    def __init__(self, db_manager, num_operations=10000):
+        self.db_manager = db_manager
+        self.num_operations = num_operations
     
-    # Set up fresh database
-    setup_database()
-    
-    # Create connection pool
-    connection_pool = ConnectionPool(DB_FILE, POOL_SIZE)
-    
-    # Measure insert operations
-    start_time = time.time()
-    
-    for i in range(1, NUM_OPERATIONS + 1):
-        username = f"user{i}"
-        email = f"user{i}@example.com"
-        insert_user(username, email)
-    
-    insert_time = time.time() - start_time
-    print(f"Insert time: {insert_time:.4f} seconds")
-    
-    # Measure query operations
-    start_time = time.time()
-    
-    for i in range(1, NUM_OPERATIONS + 1):
-        user_id = random.randint(1, NUM_OPERATIONS)
-        user = get_user_by_id(user_id)
-    
-    query_time = time.time() - start_time
-    print(f"Query time: {query_time:.4f} seconds")
-    
-    # Measure update operations
-    start_time = time.time()
-    
-    for i in range(1, NUM_OPERATIONS + 1):
-        user_id = random.randint(1, NUM_OPERATIONS)
-        new_email = f"updated{user_id}@example.com"
-        update_user_email(user_id, new_email)
-    
-    update_time = time.time() - start_time
-    print(f"Update time: {update_time:.4f} seconds")
-    
-    # Close all connections
-    connection_pool.close_all()
-    
-    # Total time
-    total_time = insert_time + query_time + update_time
-    print(f"Total time: {total_time:.4f} seconds")
-    
-    return {
-        "insert_time": insert_time,
-        "query_time": query_time,
-        "update_time": update_time,
-        "total_time": total_time
-    }
+    def run_benchmark(self):
+        """Run a benchmark of database operations with connection pooling."""
+        print(f"Running benchmark with {self.num_operations} operations...")
+        print(f"Connection pool size: {self.db_manager.pool.max_connections}")
+        
+        # Measure insert operations
+        start_time = time.time()
+        
+        for i in range(1, self.num_operations + 1):
+            username = f"user{i}"
+            email = f"user{i}@example.com"
+            self.db_manager.insert_user(username, email)
+        
+        insert_time = time.time() - start_time
+        print(f"Insert time: {insert_time:.4f} seconds")
+        
+        # Measure query operations
+        start_time = time.time()
+        
+        for _ in range(self.num_operations):
+            user_id = random.randint(1, self.num_operations)
+            self.db_manager.get_user_by_id(user_id)
+        
+        query_time = time.time() - start_time
+        print(f"Query time: {query_time:.4f} seconds")
+        
+        # Measure update operations
+        start_time = time.time()
+        
+        for _ in range(self.num_operations):
+            user_id = random.randint(1, self.num_operations)
+            new_email = f"updated{user_id}@example.com"
+            self.db_manager.update_user_email(user_id, new_email)
+        
+        update_time = time.time() - start_time
+        print(f"Update time: {update_time:.4f} seconds")
+        
+        # Close all connections
+        self.db_manager.close()
+        
+        # Total time
+        total_time = insert_time + query_time + update_time
+        print(f"Total time: {total_time:.4f} seconds")
+        
+        return {
+            "insert_time": insert_time,
+            "query_time": query_time,
+            "update_time": update_time,
+            "total_time": total_time
+        }
 
-if __name__ == "__main__":
+def main():
+    """Main function to run the benchmark"""
     print("Database Operations with Connection Pooling")
     print("=" * 50)
     
+    # Create a database manager with connection pool
+    db_manager = DatabaseManager("my_database.db", pool_size=20)
+    
+    # Create a benchmark with 5000 operations
+    benchmark = DatabaseBenchmark(db_manager, num_operations=5000)
+    
     # Run the benchmark
-    results = run_benchmark()
+    results = benchmark.run_benchmark()
     
     print("\nBenchmark Summary:")
     print("-" * 30)
-    print(f"Operations: {NUM_OPERATIONS} of each type")
-    print(f"Connection pool size: {POOL_SIZE}")
+    print(f"Operations: {benchmark.num_operations} of each type")
+    print(f"Connection pool size: {db_manager.pool.max_connections}")
     print(f"Insert time: {results['insert_time']:.4f} seconds")
     print(f"Query time: {results['query_time']:.4f} seconds")
     print(f"Update time: {results['update_time']:.4f} seconds")
-    print(f"Total time: {results['total_time']:.4f} seconds") 
+    print(f"Total time: {results['total_time']:.4f} seconds")
+
+if __name__ == "__main__":
+    main() 
