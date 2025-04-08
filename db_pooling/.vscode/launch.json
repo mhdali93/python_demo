@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run DB Pooling Comparison",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/compare_performance.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+} 
