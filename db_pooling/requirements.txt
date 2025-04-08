@@ -1,0 +1,9 @@
+# Core dependencies
+# sqlite3 is part of the Python standard library, no need to install
+
+# For SQLAlchemy example
+sqlalchemy>=2.0.0
+
+# For comparison script and visualization
+matplotlib>=3.5.0
+numpy>=1.20.0 

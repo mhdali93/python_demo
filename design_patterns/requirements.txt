@@ -1,0 +1,11 @@
+# Core libraries for design patterns
+typing-extensions>=4.5.0  # Enhanced typing support
+dataclasses>=0.6  # For data classes (useful in many patterns)
+
+# Testing libraries (useful for testing design patterns)
+pytest>=7.3.1  # For testing
+pytest-cov>=4.1.0  # For coverage reports
+
+# Optional: For more advanced examples
+pydantic>=2.0.0  # For data validation (useful in factory and prototype patterns)
+python-dotenv>=1.0.0  # For configuration management (useful in singleton pattern) 
